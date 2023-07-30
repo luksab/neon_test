@@ -24,21 +24,24 @@
 use neon_test::*;
 
 fn main() {
-    thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Crossplatform(
-        3.try_into().unwrap(),
-    ))
-    .unwrap();
+    // thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Crossplatform(
+    //     3.try_into().unwrap(),
+    // ))
+    // .unwrap();
     let x = 16;
-    let y = 16;
-    let mut array = generate_array(x, y);
+    let array = generate_array(x);
     println!("Original array: ");
-    print_array(&array);
-    let rotated_array = transpose_array_sisd(&array);
+    print_array_spaced(&array);
+    let rotated_array_sisd = double_array_sisd(&array);
+    let rotated_array_sisd_opt = double_array_sisd_opt(&array);
+    let rotated_array_sisd_64 = double_array_sisd_opt_iter(&array);
     println!("Rotated array: ");
-    print_2d_slice(&rotated_array, x, y);
+    print_array(&rotated_array_sisd_64);
+    assert_eq!(rotated_array_sisd, rotated_array_sisd_opt);
+    assert_eq!(rotated_array_sisd, rotated_array_sisd_64);
     // simd
-    let rotated_array_simd = transpose_array_simd(&mut array);
-    println!("Rotated array simd: ");
-    print_2d_slice(&rotated_array_simd, x, y);
-    assert_eq!(rotated_array, rotated_array_simd)
+    // let rotated_array_simd = double_array_simd(&mut array);
+    // println!("Rotated array simd: ");
+    // print_array(&rotated_array_simd);
+    // assert_eq!(rotated_array, rotated_array_simd)
 }

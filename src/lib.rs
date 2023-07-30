@@ -1,133 +1,189 @@
-pub fn generate_array(x: usize, y: usize) -> Vec<Vec<u8>> {
-    let mut array = vec![vec![0; y]; x];
-    let mut count = 0;
+#![feature(stdsimd)]
+#![feature(new_uninit)]
+
+pub fn generate_array(size: usize) -> Vec<u8> {
+    let mut array = vec![0; size];
     let mut random_start = 25487;
 
-    for i in 0..x {
-        for j in 0..y {
-            random_start = random_start * 214013 + 2531011;
-            array[i][j] = random_start as u8;
-            count += 1;
-        }
+    for i in 0..size {
+        random_start = random_start * 214013 + 2531011;
+        array[i] = random_start as u8;
     }
     array
 }
 
-pub fn transpose_array_sisd(array: &Vec<Vec<u8>>) -> Vec<u8> {
-    let x = array.len();
-    let y = array[0].len();
-    let mut tansposed_array = vec![0; x * y];
+/// doube up each bit in the array
+/// [1|2|3|4|5|6|7|8, 9|10|11|12|13|14|15|16] ->
+/// [1|1|2|2|3|3|4|4, 5|5|6|6|7|7|8|8, 9|9|10|10|11|11|12|12, 13|13|14|14|15|15|16|16]
+pub fn double_array_sisd(array: &Vec<u8>) -> Vec<u8> {
+    let size = array.len();
+    let mut doubled_array = vec![0; size * 2];
 
-    for i in 0..x {
-        for j in 0..y {
-            tansposed_array[j * x + i] = array[i][j];
+    for i in 0..size {
+        for j in 0..8 {
+            let byte = 1 - (j / 4);
+            let bit = (array[i] >> j) & 1;
+            doubled_array[i * 2 + byte] |= bit << ((j * 2) % 8);
+            doubled_array[i * 2 + byte] |= bit << ((j * 2 + 1) % 8);
         }
     }
-    tansposed_array
+    doubled_array
 }
 
-#[cfg(any(target_arch = "aarch64", target_arch = "arm"))]
-pub fn transpose_array_sisd_prefetch(array: &Vec<Vec<u8>>) -> Vec<u8> {
-    let x = array.len();
-    let y = array[0].len();
-    let mut tansposed_array = vec![0; x * y];
-    
-    for i in 0..x {
-        for j in 0..y {
-            tansposed_array[j * x + i] = array[i][j];
-        }
+pub fn double_array_sisd_opt(array: &Vec<u8>) -> Vec<u8> {
+    let size = array.len();
+    // let mut doubled_array = vec![0; size * 2];
+    let mut doubled_array = Box::new_uninit_slice(size * 2);
+
+    for i in 0..size {
+        let num: u16 = array[i] as u16;
+        let num = num & 0b0000_0000_1111_1111 | (num & 0b1111_1111_0000_0000) << 8;
+        let num = num & 0b0000_1111_0000_1111 | (num & 0b1111_0000_1111_0000) << 4;
+        let num = num & 0b0011_0011_0011_0011 | (num & 0b1100_1100_1100_1100) << 2;
+        let num = num & 0b0101_0101_0101_0101 | (num & 0b1010_1010_1010_1010) << 1;
+        let num = num | num << 1;
+        // doubled_array[i * 2 + 1] = (num & 0b0000_0000_1111_1111) as u8;
+        // doubled_array[i * 2] = ((num & 0b1111_1111_0000_0000) >> 8) as u8;
+        doubled_array[i * 2 + 1].write((num & 0b0000_0000_1111_1111) as u8);
+        doubled_array[i * 2].write(((num & 0b1111_1111_0000_0000) >> 8) as u8);
     }
-    tansposed_array
+    let array = unsafe { doubled_array.assume_init() };
+    Vec::from(array)
+}
+
+pub fn double_array_sisd_opt_iter(array: &[u8]) -> Vec<u8> {
+    array
+        .iter()
+        .flat_map(|&x| {
+            let num: u16 = x as u16;
+            let num = num & 0b0000_0000_1111_1111 | (num & 0b1111_1111_0000_0000) << 8;
+            let num = num & 0b0000_1111_0000_1111 | (num & 0b1111_0000_1111_0000) << 4;
+            let num = num & 0b0011_0011_0011_0011 | (num & 0b1100_1100_1100_1100) << 2;
+            let num = num & 0b0101_0101_0101_0101 | (num & 0b1010_1010_1010_1010) << 1;
+            let num = num | num << 1;
+            // doubled_array[i * 2 + 1] = (num & 0b0000_0000_1111_1111) as u8;
+            // doubled_array[i * 2] = ((num & 0b1111_1111_0000_0000) >> 8) as u8;
+            [
+                (num & 0b0000_0000_1111_1111) as u8,
+                ((num & 0b1111_1111_0000_0000) >> 8) as u8,
+            ]
+        })
+        .collect()
+}
+
+pub fn double_array_sisd_opt_64(array: &Vec<u8>) -> Vec<u8> {
+    let size = array.len();
+    let mut doubled_array = vec![0; size * 2];
+
+    for i in (0..size).step_by(4) {
+        let num: u64 = array[i + 3] as u64
+            | (array[i + 2] as u64) << 8
+            | (array[i + 1] as u64) << 16
+            | (array[i] as u64) << 24;
+        // let num: u64 = u64::from_be_bytes([
+        //     0,
+        //     0,
+        //     0,
+        //     0,
+        //     array[i],
+        //     array[i + 1],
+        //     array[i + 2],
+        //     array[i + 3],
+        // ]);
+        let num = num
+            & 0b0000_0000_0000_0000_1111_1111_1111_1111_0000_0000_0000_0000_1111_1111_1111_1111
+            | (num
+                & 0b1111_1111_1111_1111_0000_0000_0000_0000_1111_1111_1111_1111_0000_0000_0000_0000)
+                << 16;
+        let num = num
+            & 0b0000_0000_1111_1111_0000_0000_1111_1111_0000_0000_1111_1111_0000_0000_1111_1111
+            | (num
+                & 0b1111_1111_0000_0000_1111_1111_0000_0000_1111_1111_0000_0000_1111_1111_0000_0000)
+                << 8;
+        let num = num
+            & 0b0000_1111_0000_1111_0000_1111_0000_1111_0000_1111_0000_1111_0000_1111_0000_1111
+            | (num
+                & 0b1111_0000_1111_0000_1111_0000_1111_0000_1111_0000_1111_0000_1111_0000_1111_0000)
+                << 4;
+        let num = num
+            & 0b0011_0011_0011_0011_0011_0011_0011_0011_0011_0011_0011_0011_0011_0011_0011_0011
+            | (num
+                & 0b1100_1100_1100_1100_1100_1100_1100_1100_1100_1100_1100_1100_1100_1100_1100_1100)
+                << 2;
+        let num = num
+            & 0b0101_0101_0101_0101_0101_0101_0101_0101_0101_0101_0101_0101_0101_0101_0101_0101
+            | (num
+                & 0b1010_1010_1010_1010_1010_1010_1010_1010_1010_1010_1010_1010_1010_1010_1010_1010)
+                << 1;
+        let num = num | num << 1;
+        let num_array = num.to_be_bytes();
+        doubled_array[i * 2..i * 2 + 8].copy_from_slice(&num_array);
+        // doubled_array[i * 2 + 7] = (num & 0b1111_1111) as u8;
+        // doubled_array[i * 2 + 6] = ((num & 0b1111_1111_0000_0000) >> 8) as u8;
+        // doubled_array[i * 2 + 5] = ((num & 0b1111_1111_0000_0000_0000_0000) >> 16) as u8;
+        // doubled_array[i * 2 + 4] = ((num & 0b1111_1111_0000_0000_0000_0000_0000_0000) >> 24) as u8;
+        // doubled_array[i * 2 + 3] =
+        //     ((num & 0b1111_1111_0000_0000_0000_0000_0000_0000_0000_0000) >> 32) as u8;
+        // doubled_array[i * 2 + 2] =
+        //     ((num & 0b1111_1111_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000) >> 40) as u8;
+        // doubled_array[i * 2 + 1] = ((num
+        //     & 0b1111_1111_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000)
+        //     >> 48) as u8;
+        // doubled_array[i * 2] = ((num
+        //     & 0b1111_1111_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000)
+        //     >> 56) as u8;
+    }
+    doubled_array
 }
 
 #[cfg(all(
     any(target_arch = "aarch64", target_arch = "arm"),
     target_feature = "neon"
 ))]
-pub fn transpose_array_simd(array: &mut Vec<Vec<u8>>) -> Vec<u8> {
+pub fn double_array_simd(array: &Vec<u8>) -> Vec<u8> {
     use std::arch::aarch64::*;
-    let x = array.len();
-    let y = array[0].len();
-    let mut tansposed_array = vec![0; x * y];
+    let size = array.len();
+    let mut doubled_array = vec![0; size * 2];
 
-    for i in (0..x).step_by(16) {
-        for j in (0..y).step_by(16) {
-            unsafe {
-                let I0 = vld1q_u8(array[i].as_ptr().add(j));
-                let I1 = vld1q_u8(array[i + 1].as_ptr().add(j));
-                let I2 = vld1q_u8(array[i + 2].as_ptr().add(j));
-                let I3 = vld1q_u8(array[i + 3].as_ptr().add(j));
-                let I4 = vld1q_u8(array[i + 4].as_ptr().add(j));
-                let I5 = vld1q_u8(array[i + 5].as_ptr().add(j));
-                let I6 = vld1q_u8(array[i + 6].as_ptr().add(j));
-                let I7 = vld1q_u8(array[i + 7].as_ptr().add(j));
-                let I8 = vld1q_u8(array[i + 8].as_ptr().add(j));
-                let I9 = vld1q_u8(array[i + 9].as_ptr().add(j));
-                let I10 = vld1q_u8(array[i + 10].as_ptr().add(j));
-                let I11 = vld1q_u8(array[i + 11].as_ptr().add(j));
-                let I12 = vld1q_u8(array[i + 12].as_ptr().add(j));
-                let I13 = vld1q_u8(array[i + 13].as_ptr().add(j));
-                let I14 = vld1q_u8(array[i + 14].as_ptr().add(j));
-                let I15 = vld1q_u8(array[i + 15].as_ptr().add(j));
+    for i in (0..size).step_by(16) {
+        unsafe {
+            // load
+            let input = vld1q_u8(array.as_ptr().add(i));
 
-                let K0 = vzipq_u8(I0, I1);
-                let K1 = vzipq_u8(I2, I3);
-                let K2 = vzipq_u8(I4, I5);
-                let K3 = vzipq_u8(I6, I7);
-                let K4 = vzipq_u8(I8, I9);
-                let K5 = vzipq_u8(I10, I11);
-                let K6 = vzipq_u8(I12, I13);
-                let K7 = vzipq_u8(I14, I15);
+            // copy input into two vectors
+            // [1|2|3|4|5|6|7|8, 9|10|11|12|13|14|15|16] ->
+            // [1|1|2|2|3|3|4|4, 5|5|6|6|7|7|8|8]
+            // [9|9|10|10|11|11|12|12, 13|13|14|14|15|15|16|16]
+            let T0 = vtrn1q_u8(input, input);
+            let T1 = vtrn2q_u8(input, input);
 
-                let T0 = vcombine_u8(vget_low_u8(K0.0), vget_low_u8(K0.1));
-                let T1 = vcombine_u8(vget_low_u8(K1.0), vget_low_u8(K1.1));
-                let T2 = vcombine_u8(vget_low_u8(K2.0), vget_low_u8(K2.1));
-                let T3 = vcombine_u8(vget_low_u8(K3.0), vget_low_u8(K3.1));
-                let T4 = vcombine_u8(vget_low_u8(K4.0), vget_low_u8(K4.1));
-                let T5 = vcombine_u8(vget_low_u8(K5.0), vget_low_u8(K5.1));
-                let T6 = vcombine_u8(vget_low_u8(K6.0), vget_low_u8(K6.1));
-                let T7 = vcombine_u8(vget_low_u8(K7.0), vget_low_u8(K7.1));
-                let T8 = vcombine_u8(vget_high_u8(K0.0), vget_high_u8(K0.1));
-                let T9 = vcombine_u8(vget_high_u8(K1.0), vget_high_u8(K1.1));
-                let T10 = vcombine_u8(vget_high_u8(K2.0), vget_high_u8(K2.1));
-                let T11 = vcombine_u8(vget_high_u8(K3.0), vget_high_u8(K3.1));
-                let T12 = vcombine_u8(vget_high_u8(K4.0), vget_high_u8(K4.1));
-                let T13 = vcombine_u8(vget_high_u8(K5.0), vget_high_u8(K5.1));
-                let T14 = vcombine_u8(vget_high_u8(K6.0), vget_high_u8(K6.1));
-                let T15 = vcombine_u8(vget_high_u8(K7.0), vget_high_u8(K7.1));
+            // set
 
-                vst1q_u8(tansposed_array.as_mut_ptr().add(i * y + j), T0);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 1) * y + j), T1);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 2) * y + j), T2);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 3) * y + j), T3);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 4) * y + j), T4);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 5) * y + j), T5);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 6) * y + j), T6);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 7) * y + j), T7);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 8) * y + j), T8);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 9) * y + j), T9);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 10) * y + j), T10);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 11) * y + j), T11);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 12) * y + j), T12);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 13) * y + j), T13);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 14) * y + j), T14);
-                vst1q_u8(tansposed_array.as_mut_ptr().add((i + 15) * y + j), T15);
-            }
+            vst1q_u8(doubled_array.as_mut_ptr().add(i * 2), T0);
+            vst1q_u8(doubled_array.as_mut_ptr().add(i * 2 + 16), T1);
         }
     }
-    tansposed_array
+    doubled_array
 }
 
-pub fn print_array(array: &Vec<Vec<u8>>) {
+pub fn print_array(array: &Vec<u8>) {
     let x = array.len();
-    let y = array[0].len();
 
     for i in 0..x {
-        for j in 0..y {
-            print!("{} ", array[i][j]);
-        }
-        println!();
+        print!("{:08b}", array[i]);
     }
+    println!();
+}
+
+pub fn print_array_spaced(array: &Vec<u8>) {
+    let x = array.len();
+
+    for i in 0..x {
+        for j in 0..8 {
+            print!(" {}", ((array[i] << j) & 0b10000000) >> 7);
+        }
+    }
+    println!();
 }
 
 pub fn print_2d_slice(array: &[u8], x: usize, y: usize) {
