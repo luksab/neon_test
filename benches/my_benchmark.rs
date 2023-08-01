@@ -4,7 +4,7 @@ use neon_test::*;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("double_array");
-    let x = 384 * 1000 * 10;
+    let x = 10_000_000;
     let array = generate_array(x);
     group.bench_function("sisd", |b| {
         b.iter(|| double_array_sisd(black_box(&array)))

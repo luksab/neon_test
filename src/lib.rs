@@ -47,6 +47,7 @@ pub fn double_array_sisd_opt(array: &Vec<u8>) -> Vec<u8> {
         doubled_array[i * 2 + 1].write((num & 0b0000_0000_1111_1111) as u8);
         doubled_array[i * 2].write(((num & 0b1111_1111_0000_0000) >> 8) as u8);
     }
+    // SAFETY: we just wrote to every element of the array
     let array = unsafe { doubled_array.assume_init() };
     Vec::from(array)
 }
@@ -61,8 +62,6 @@ pub fn double_array_sisd_opt_iter(array: &[u8]) -> Vec<u8> {
             let num = num & 0b0011_0011_0011_0011 | (num & 0b1100_1100_1100_1100) << 2;
             let num = num & 0b0101_0101_0101_0101 | (num & 0b1010_1010_1010_1010) << 1;
             let num = num | num << 1;
-            // doubled_array[i * 2 + 1] = (num & 0b0000_0000_1111_1111) as u8;
-            // doubled_array[i * 2] = ((num & 0b1111_1111_0000_0000) >> 8) as u8;
             [
                 (num & 0b0000_0000_1111_1111) as u8,
                 ((num & 0b1111_1111_0000_0000) >> 8) as u8,
