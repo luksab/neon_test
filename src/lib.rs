@@ -63,8 +63,8 @@ pub fn double_array_sisd_opt_iter(array: &[u8]) -> Vec<u8> {
             let num = num & 0b0101_0101_0101_0101 | (num & 0b1010_1010_1010_1010) << 1;
             let num = num | num << 1;
             [
-                (num & 0b0000_0000_1111_1111) as u8,
                 ((num & 0b1111_1111_0000_0000) >> 8) as u8,
+                (num & 0b0000_0000_1111_1111) as u8,
             ]
         })
         .collect()
