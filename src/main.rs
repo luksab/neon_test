@@ -28,20 +28,19 @@ fn main() {
     //     3.try_into().unwrap(),
     // ))
     // .unwrap();
-    let x = 16;
+    let x = 128;
     let array = generate_array(x);
     println!("Original array: ");
     print_array_spaced(&array);
     let rotated_array_sisd = double_array_sisd(&array);
     let rotated_array_sisd_opt = double_array_sisd_opt(&array);
-    let rotated_array_sisd_64 = double_array_sisd_opt_iter(&array);
+    let rotated_array_sisd_iter = double_array_sisd_opt_iter(&array);
+    let rotated_array_sisd_iter_rayon = double_array_sisd_opt_rayon(&array);
+    let rotated_array_lut_simd = double_array_lookup_neon_u4(&array);
     println!("Rotated array: ");
-    print_array(&rotated_array_sisd_64);
+    print_array(&rotated_array_sisd);
     assert_eq!(rotated_array_sisd, rotated_array_sisd_opt);
-    assert_eq!(rotated_array_sisd, rotated_array_sisd_64);
-    // simd
-    // let rotated_array_simd = double_array_simd(&mut array);
-    // println!("Rotated array simd: ");
-    // print_array(&rotated_array_simd);
-    // assert_eq!(rotated_array, rotated_array_simd)
+    assert_eq!(rotated_array_sisd, rotated_array_sisd_iter);
+    assert_eq!(rotated_array_sisd, rotated_array_sisd_iter_rayon);
+    assert_eq!(rotated_array_sisd, rotated_array_lut_simd);
 }
