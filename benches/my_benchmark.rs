@@ -7,7 +7,7 @@ use neon_test::*;
 
 fn compare_algos(c: &mut Criterion) {
     let mut group = c.benchmark_group("double_array");
-    let x = 10_000_000;
+    let x = 10*1024*1024;
     let array = generate_array(x);
     group.bench_function("sisd", |b| b.iter(|| double_array_sisd(black_box(&array))));
     // group.bench_function("sisd opt", |b| {
@@ -24,6 +24,9 @@ fn compare_algos(c: &mut Criterion) {
     // });
     group.bench_function("lut simd", |b| {
         b.iter(|| double_array_lookup_neon_u4(black_box(&array)))
+    });
+    group.bench_function("lut simd unroll", |b| {
+        b.iter(|| double_array_lookup_neon_u4_unrolled(black_box(&array)))
     });
     group.finish();
 }
