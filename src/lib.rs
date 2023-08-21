@@ -353,8 +353,7 @@ pub fn double_array_lookup_neon_u4(array: &[u8]) -> Vec<u8> {
             let output_hi = vqtbl1q_u8(lookup, input_hi);
             // combine the low and high halves back into a single vector
             let output = vzipq_u8(output_hi, output_lo);
-            vst1q_u8(doubled_array.as_mut_ptr().add(i * 2), output.0);
-            vst1q_u8(doubled_array.as_mut_ptr().add(i * 2 + 16), output.1);
+            vst1q_u8_x2(doubled_array.as_mut_ptr().add(i * 2), output);
         }
         doubled_array.set_len(array.len() * 2);
     }
