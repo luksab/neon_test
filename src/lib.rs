@@ -312,7 +312,6 @@ pub fn print_2d_slice(array: &[u8], x: usize, y: usize) {
 ))]
 pub fn double_array_lookup_neon_u4(array: &[u8]) -> Vec<u8> {
     use std::arch::aarch64::*;
-    use std::ptr::write_unaligned;
 
     let mut doubled_array: Vec<u8> = Vec::with_capacity(array.len() * 2);
 
@@ -336,14 +335,22 @@ pub fn double_array_lookup_neon_u4(array: &[u8]) -> Vec<u8> {
         0b11111111,
     ];
 
-    let (array, rest) = array.split_at(array.len() - array.len() % 16);
+    let (pre, array, rest) = unsafe { array.align_to::<uint8x16_t>() };
+
+    for i in pre {
+        doubled_array.push(LOOKUP[(i >> 4) as usize]);
+        doubled_array.push(LOOKUP[(i & 0b1111) as usize]);
+    }
 
     unsafe {
         // store LUT in a vector
         let lookup = vld1q_u8(LOOKUP.as_ptr());
 
-        for i in (0..array.len()).step_by(16) {
-            let input = vld1q_u8(array.as_ptr().add(i));
+        let mut_ptr = doubled_array.as_mut_ptr();
+        let pre_len_x2 = pre.len() * 2;
+        for i in 0..array.len() {
+            // let input = vld1q_u8(array.as_ptr().add(i));
+            let input = *array.get_unchecked(i);
             // get low half of each byte by masking out the high half
             let input_lo = vbicq_u8(input, vdupq_n_u8(0b1111_0000));
             // get high half of each byte by shifting right 4 bits
@@ -353,9 +360,9 @@ pub fn double_array_lookup_neon_u4(array: &[u8]) -> Vec<u8> {
             let output_hi = vqtbl1q_u8(lookup, input_hi);
             // combine the low and high halves back into a single vector
             let output = vzipq_u8(output_hi, output_lo);
-            vst1q_u8_x2(doubled_array.as_mut_ptr().add(i * 2), output);
+            vst1q_u8_x2(mut_ptr.add(i * 32 + pre_len_x2), output);
         }
-        doubled_array.set_len(array.len() * 2);
+        doubled_array.set_len(array.len() * 32 + pre.len() * 2);
     }
 
     // deal with the rest of the array
