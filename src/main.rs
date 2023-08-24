@@ -28,7 +28,7 @@ fn main() {
     //     3.try_into().unwrap(),
     // ))
     // .unwrap();
-    let x = 129;
+    let x = 128;
     let array = generate_array(x);
     println!("Original array: ");
     print_array_spaced(&array);
@@ -37,10 +37,16 @@ fn main() {
     let rotated_array_sisd_iter = double_array_sisd_opt_iter(&array);
     // let rotated_array_sisd_iter_rayon = double_array_sisd_opt_rayon(&array);
     let rotated_array_lut_simd = double_array_lookup_neon_u4(&array);
+    let thread_pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(8)
+            .build()
+            .unwrap();
+    let rotated_array_lut_simd_multi = double_array_lookup_neon_u4_multithread(&array, &thread_pool);
     println!("Rotated array: ");
     print_array(&rotated_array_sisd);
     assert_eq!(rotated_array_sisd, rotated_array_sisd_opt);
     assert_eq!(rotated_array_sisd, rotated_array_sisd_iter);
     // assert_eq!(rotated_array_sisd, rotated_array_sisd_iter_rayon);
     assert_eq!(rotated_array_sisd, rotated_array_lut_simd);
+    assert_eq!(rotated_array_sisd, rotated_array_lut_simd_multi);
 }
