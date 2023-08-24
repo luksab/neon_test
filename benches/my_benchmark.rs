@@ -7,7 +7,7 @@ use neon_test::*;
 
 fn compare_algos(c: &mut Criterion) {
     let mut group = c.benchmark_group("double_array");
-    let x = 1024 * 1024 * 1024;
+    let x = 10 * 1024 * 1024;
     let array = generate_array(x);
     // group.bench_function("sisd", |b| b.iter(|| double_array_sisd(black_box(&array))));
     // // group.bench_function("sisd opt", |b| {
@@ -25,12 +25,18 @@ fn compare_algos(c: &mut Criterion) {
     group.bench_function("lut simd", |b| {
         b.iter(|| double_array_lookup_neon_u4(black_box(&array)))
     });
-    group.bench_function("lut simd multi", |b| {
-        let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(8)
-            .build()
-            .unwrap();
-        b.iter(|| double_array_lookup_neon_u4_multithread(black_box(&array), &thread_pool))
+    // group.bench_function("lut simd multi", |b| {
+    //     let thread_pool = rayon::ThreadPoolBuilder::new()
+    //         .num_threads(8)
+    //         .build()
+    //         .unwrap();
+    //     b.iter(|| double_array_lookup_neon_u4_multithread(black_box(&array), &thread_pool))
+    // });
+    group.bench_function("ben", |b| {
+        b.iter(|| double_array_ben(black_box(&array)))
+    });
+    group.bench_function("benk", |b| {
+        b.iter(|| double_array_benk(black_box(&array)))
     });
     group.finish();
 }

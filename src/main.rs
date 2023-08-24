@@ -37,6 +37,8 @@ fn main() {
     let rotated_array_sisd_iter = double_array_sisd_opt_iter(&array);
     // let rotated_array_sisd_iter_rayon = double_array_sisd_opt_rayon(&array);
     let rotated_array_lut_simd = double_array_lookup_neon_u4(&array);
+    let rotated_array_ben = double_array_ben(&array);
+    let rotated_array_benk = double_array_benk(&array);
     let thread_pool = rayon::ThreadPoolBuilder::new()
             .num_threads(8)
             .build()
@@ -49,4 +51,6 @@ fn main() {
     // assert_eq!(rotated_array_sisd, rotated_array_sisd_iter_rayon);
     assert_eq!(rotated_array_sisd, rotated_array_lut_simd);
     assert_eq!(rotated_array_sisd, rotated_array_lut_simd_multi);
+    assert_eq!(rotated_array_sisd, rotated_array_ben);
+    assert_eq!(rotated_array_sisd, rotated_array_benk);
 }
