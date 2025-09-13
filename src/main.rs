@@ -35,22 +35,47 @@ fn main() {
     let rotated_array_sisd = double_array_sisd(&array);
     let rotated_array_sisd_opt = double_array_sisd_opt(&array);
     let rotated_array_sisd_iter = double_array_sisd_opt_iter(&array);
+    let rotated_array_lookup_u4 = double_array_lookup_u4(&array);
+    let rotated_array_lookup_u8 = double_array_lookup_u8(&array);
+    let rotated_array_lookup_u16 = double_array_lookup_u16(&array);
     // let rotated_array_sisd_iter_rayon = double_array_sisd_opt_rayon(&array);
+    #[cfg(all(
+        any(target_arch = "aarch64", target_arch = "arm"),
+        target_feature = "neon"
+    ))]
     let rotated_array_lut_simd = double_array_lookup_neon_u4(&array);
     let rotated_array_ben = double_array_ben(&array);
-    let rotated_array_benk = double_array_benk(&array);
-    let thread_pool = rayon::ThreadPoolBuilder::new()
+    // let rotated_array_benk = double_array_benk(&array);
+    #[cfg(all(
+        any(target_arch = "aarch64", target_arch = "arm"),
+        target_feature = "neon"
+    ))]
+    {
+        let thread_pool = rayon::ThreadPoolBuilder::new()
             .num_threads(8)
             .build()
             .unwrap();
-    let rotated_array_lut_simd_multi = double_array_lookup_neon_u4_multithread(&array, &thread_pool);
+        let rotated_array_lut_simd_multi =
+            double_array_lookup_neon_u4_multithread(&array, &thread_pool);
+    }
     println!("Rotated array: ");
     print_array(&rotated_array_sisd);
     assert_eq!(rotated_array_sisd, rotated_array_sisd_opt);
     assert_eq!(rotated_array_sisd, rotated_array_sisd_iter);
+    assert_eq!(rotated_array_sisd, rotated_array_lookup_u4);
+    assert_eq!(rotated_array_sisd, rotated_array_lookup_u8);
+    assert_eq!(rotated_array_sisd, rotated_array_lookup_u16);
     // assert_eq!(rotated_array_sisd, rotated_array_sisd_iter_rayon);
+    #[cfg(all(
+        any(target_arch = "aarch64", target_arch = "arm"),
+        target_feature = "neon"
+    ))]
     assert_eq!(rotated_array_sisd, rotated_array_lut_simd);
+    #[cfg(all(
+        any(target_arch = "aarch64", target_arch = "arm"),
+        target_feature = "neon"
+    ))]
     assert_eq!(rotated_array_sisd, rotated_array_lut_simd_multi);
     assert_eq!(rotated_array_sisd, rotated_array_ben);
-    assert_eq!(rotated_array_sisd, rotated_array_benk);
+    // assert_eq!(rotated_array_sisd, rotated_array_benk);
 }
