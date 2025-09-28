@@ -30,14 +30,38 @@ fn main() {
     // .unwrap();
     let x = 128;
     let array = generate_array(x);
-    println!("Original array: ");
-    print_array_spaced(&array);
+    // println!("Original array: ");
+    // print_array_spaced(&array);
     let rotated_array_sisd = double_array_sisd(&array);
+    let rotated_array_laura = double_array_sisd_laura(&array);
+    let rotated_array_laura_u32 = double_array_sisd_laura_u32(&array);
     let rotated_array_sisd_opt = double_array_sisd_opt(&array);
     let rotated_array_sisd_iter = double_array_sisd_opt_iter(&array);
     let rotated_array_lookup_u4 = double_array_lookup_u4(&array);
     let rotated_array_lookup_u8 = double_array_lookup_u8(&array);
     let rotated_array_lookup_u16 = double_array_lookup_u16(&array);
+    #[cfg(all(
+        any(target_arch = "x86", target_arch = "x86_64"),
+        target_feature = "avx2"
+    ))]
+    {
+        let rotated_array_lut_simd_avx = double_array_lookup_avx_u4(&array);
+        assert_eq!(rotated_array_sisd, rotated_array_lut_simd_avx);
+        let rotated_double_array_simd_laura = double_array_simd_laura(&array);
+        assert_eq!(rotated_array_sisd, rotated_double_array_simd_laura);
+        let rotated_double_array_simd_lut_simd_avx512 = double_array_lookup_avx512_u4(&array);
+
+        let orig = unsafe {
+            rotated_array_sisd.align_to::<u128>().1
+        };
+        let avx = unsafe {
+            rotated_double_array_simd_lut_simd_avx512.align_to::<u128>().1
+        };
+        assert_eq!(orig, avx);
+
+        assert_eq!(rotated_array_sisd, rotated_double_array_simd_lut_simd_avx512);
+    }
+
     // let rotated_array_sisd_iter_rayon = double_array_sisd_opt_rayon(&array);
     #[cfg(all(
         any(target_arch = "aarch64", target_arch = "arm"),
@@ -45,7 +69,7 @@ fn main() {
     ))]
     let rotated_array_lut_simd = double_array_lookup_neon_u4(&array);
     let rotated_array_ben = double_array_ben(&array);
-    // let rotated_array_benk = double_array_benk(&array);
+    let rotated_array_benk = double_array_benk(&array);
     #[cfg(all(
         any(target_arch = "aarch64", target_arch = "arm"),
         target_feature = "neon"
@@ -58,8 +82,11 @@ fn main() {
         let rotated_array_lut_simd_multi =
             double_array_lookup_neon_u4_multithread(&array, &thread_pool);
     }
-    println!("Rotated array: ");
-    print_array(&rotated_array_sisd);
+    // println!("Rotated array: ");
+    // print_array(&rotated_array_sisd);
+    // print_array(&rotated_array_laura);
+    assert_eq!(rotated_array_sisd, rotated_array_laura);
+    assert_eq!(rotated_array_sisd, rotated_array_laura_u32);
     assert_eq!(rotated_array_sisd, rotated_array_sisd_opt);
     assert_eq!(rotated_array_sisd, rotated_array_sisd_iter);
     assert_eq!(rotated_array_sisd, rotated_array_lookup_u4);
@@ -77,5 +104,5 @@ fn main() {
     ))]
     assert_eq!(rotated_array_sisd, rotated_array_lut_simd_multi);
     assert_eq!(rotated_array_sisd, rotated_array_ben);
-    // assert_eq!(rotated_array_sisd, rotated_array_benk);
+    assert_eq!(rotated_array_sisd, rotated_array_benk);
 }
