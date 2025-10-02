@@ -63,6 +63,10 @@ fn compare_algos(c: &mut Criterion) {
             b.iter(|| double_array_simd_laura(black_box(&array)))
         }
     });
+    #[cfg(all(
+        any(target_arch = "x86", target_arch = "x86_64"),
+        target_feature = "avx512f"
+    ))]
     group.bench_function("throughput test", |b| {
         {
             b.iter(|| throughput_test(black_box(&array)))
@@ -72,9 +76,13 @@ fn compare_algos(c: &mut Criterion) {
     // // group.bench_function("sisd opt iter rayon", |b| {
     // //     b.iter(|| double_array_sisd_opt_rayon(black_box(&array)))
     // // });
-    // group.bench_function("lut simd", |b| {
-    //     b.iter(|| double_array_lookup_neon_u4(black_box(&array)))
-    // });
+    #[cfg(all(
+        any(target_arch = "aarch64", target_arch = "arm"),
+        target_feature = "neon"
+    ))]
+    group.bench_function("lut simd", |b| {
+        b.iter(|| double_array_lookup_neon_u4(black_box(&array)))
+    });
     // group.bench_function("lut simd multi", |b| {
     //     let thread_pool = rayon::ThreadPoolBuilder::new()
     //         .num_threads(8)

@@ -51,15 +51,18 @@ fn main() {
         assert_eq!(rotated_array_sisd, rotated_double_array_simd_laura);
         let rotated_double_array_simd_lut_simd_avx512 = double_array_lookup_avx512_u4(&array);
 
-        let orig = unsafe {
-            rotated_array_sisd.align_to::<u128>().1
-        };
+        let orig = unsafe { rotated_array_sisd.align_to::<u128>().1 };
         let avx = unsafe {
-            rotated_double_array_simd_lut_simd_avx512.align_to::<u128>().1
+            rotated_double_array_simd_lut_simd_avx512
+                .align_to::<u128>()
+                .1
         };
         assert_eq!(orig, avx);
 
-        assert_eq!(rotated_array_sisd, rotated_double_array_simd_lut_simd_avx512);
+        assert_eq!(
+            rotated_array_sisd,
+            rotated_double_array_simd_lut_simd_avx512
+        );
     }
 
     // let rotated_array_sisd_iter_rayon = double_array_sisd_opt_rayon(&array);
@@ -81,6 +84,7 @@ fn main() {
             .unwrap();
         let rotated_array_lut_simd_multi =
             double_array_lookup_neon_u4_multithread(&array, &thread_pool);
+        assert_eq!(rotated_array_sisd, rotated_array_lut_simd_multi);
     }
     // println!("Rotated array: ");
     // print_array(&rotated_array_sisd);
@@ -102,7 +106,6 @@ fn main() {
         any(target_arch = "aarch64", target_arch = "arm"),
         target_feature = "neon"
     ))]
-    assert_eq!(rotated_array_sisd, rotated_array_lut_simd_multi);
     assert_eq!(rotated_array_sisd, rotated_array_ben);
     assert_eq!(rotated_array_sisd, rotated_array_benk);
 }
